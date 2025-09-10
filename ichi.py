@@ -11,7 +11,7 @@ import numpy as np
 import os
 
 # --- KONFIGURACE ---
-DATA_DIRECTORY = '/Users/bronapecner/Downloads/trading temp/backtesting/data/btc'
+DATA_DIRECTORY = ''
 INITIAL_CAPITAL = 1000.0  # Počáteční kapitál v USDT
 RISK_PERCENT = 1.0       # Risk na jeden obchod v procentech
 
