@@ -35,56 +35,67 @@ def run_backtest(df, exit_strategy, initial_capital=1000.0, risk_percent=1.0):
     position_size = 0
     
     account_balance = initial_capital
+    
+    # Convert to numpy arrays for faster access
+    close = df['close'].values
+    high = df['high'].values
+    low = df['low'].values
+    tenkan = df['tenkan'].values
+    kijun = df['kijun'].values
+    senkou_a = df['senkou_a'].values
+    senkou_b = df['senkou_b'].values
+    chikou = df['chikou'].values
+    indices = df.index
 
     for i in range(1, len(df)):
         if in_position:
             exit_price = None
             reason = None
-            if (position_type == 'LONG' and df['low'].iloc[i] <= stop_loss) or \
-               (position_type == 'SHORT' and df['high'].iloc[i] >= stop_loss):
+            if (position_type == 'LONG' and low[i] <= stop_loss) or \
+               (position_type == 'SHORT' and high[i] >= stop_loss):
                 exit_price, reason = stop_loss, 'Stop-Loss'
             elif exit_strategy == 'A' and \
-                ((position_type == 'LONG' and df['high'].iloc[i] >= take_profit) or \
-                 (position_type == 'SHORT' and df['low'].iloc[i] <= take_profit)):
+                ((position_type == 'LONG' and high[i] >= take_profit) or \
+                 (position_type == 'SHORT' and low[i] <= take_profit)):
                 exit_price, reason = take_profit, 'Take-Profit'
             elif exit_strategy == 'B' and \
-                 ((position_type == 'LONG' and df['tenkan'].iloc[i] < df['kijun'].iloc[i]) or \
-                  (position_type == 'SHORT' and df['tenkan'].iloc[i] > df['kijun'].iloc[i])):
-                exit_price, reason = df['close'].iloc[i], 'Opposite Signal'
+                 ((position_type == 'LONG' and tenkan[i] < kijun[i]) or \
+                  (position_type == 'SHORT' and tenkan[i] > kijun[i])):
+                exit_price, reason = close[i], 'Opposite Signal'
             
             if exit_price is not None:
                 pnl = ((exit_price - entry_price) * position_size) if position_type == 'LONG' else ((entry_price - exit_price) * position_size)
                 account_balance += pnl
                 
                 trades_log.append({
-                    'entry_date': df.index[entry_index], 'exit_date': df.index[i], 'type': position_type,
+                    'entry_date': indices[entry_index], 'exit_date': indices[i], 'type': position_type,
                     'entry_price': entry_price, 'exit_price': exit_price, 'position_size': position_size,
                     'pnl': pnl, 'reason': reason, 'account_balance': account_balance
                 })
                 in_position = False
                 
             elif exit_strategy == 'C':
-                if position_type == 'LONG': stop_loss = max(stop_loss, df['kijun'].iloc[i])
-                elif position_type == 'SHORT': stop_loss = min(stop_loss, df['kijun'].iloc[i])
+                if position_type == 'LONG': stop_loss = max(stop_loss, kijun[i])
+                elif position_type == 'SHORT': stop_loss = min(stop_loss, kijun[i])
         
         if not in_position:
-            is_long_signal = df['close'].iloc[i] > df['senkou_a'].iloc[i] and \
-                             df['close'].iloc[i] > df['senkou_b'].iloc[i] and \
-                             df['chikou'].iloc[i] > df['high'].iloc[i] and \
-                             df['tenkan'].iloc[i-1] <= df['kijun'].iloc[i-1] and \
-                             df['tenkan'].iloc[i] > df['kijun'].iloc[i]
+            is_long_signal = close[i] > senkou_a[i] and \
+                             close[i] > senkou_b[i] and \
+                             chikou[i] > high[i] and \
+                             tenkan[i-1] <= kijun[i-1] and \
+                             tenkan[i] > kijun[i]
 
-            is_short_signal = df['close'].iloc[i] < df['senkou_a'].iloc[i] and \
-                              df['close'].iloc[i] < df['senkou_b'].iloc[i] and \
-                              df['chikou'].iloc[i] < df['low'].iloc[i] and \
-                              df['tenkan'].iloc[i-1] >= df['kijun'].iloc[i-1] and \
-                              df['tenkan'].iloc[i] < df['kijun'].iloc[i]
+            is_short_signal = close[i] < senkou_a[i] and \
+                              close[i] < senkou_b[i] and \
+                              chikou[i] < low[i] and \
+                              tenkan[i-1] >= kijun[i-1] and \
+                              tenkan[i] < kijun[i]
 
             if is_long_signal:
-                entry_price = df['close'].iloc[i]
-                if exit_strategy == 'A': stop_loss = df['kijun'].iloc[i]
-                elif exit_strategy == 'B': stop_loss = min(df['senkou_a'].iloc[i], df['senkou_b'].iloc[i])
-                elif exit_strategy == 'C': stop_loss = df['kijun'].iloc[i]
+                entry_price = close[i]
+                if exit_strategy == 'A': stop_loss = kijun[i]
+                elif exit_strategy == 'B': stop_loss = min(senkou_a[i], senkou_b[i])
+                elif exit_strategy == 'C': stop_loss = kijun[i]
                 
                 # --- VÝPOČET VELIKOSTI POZICE ---
                 risk_per_unit = entry_price - stop_loss
@@ -97,10 +108,10 @@ def run_backtest(df, exit_strategy, initial_capital=1000.0, risk_percent=1.0):
                 if exit_strategy == 'A': take_profit = entry_price + (risk_per_unit * RISK_REWARD_RATIO)
 
             elif is_short_signal:
-                entry_price = df['close'].iloc[i]
-                if exit_strategy == 'A': stop_loss = df['kijun'].iloc[i]
-                elif exit_strategy == 'B': stop_loss = max(df['senkou_a'].iloc[i], df['senkou_b'].iloc[i])
-                elif exit_strategy == 'C': stop_loss = df['kijun'].iloc[i]
+                entry_price = close[i]
+                if exit_strategy == 'A': stop_loss = kijun[i]
+                elif exit_strategy == 'B': stop_loss = max(senkou_a[i], senkou_b[i])
+                elif exit_strategy == 'C': stop_loss = kijun[i]
 
                 # --- VÝPOČET VELIKOSTI POZICE ---
                 risk_per_unit = stop_loss - entry_price
@@ -129,10 +140,12 @@ def analyze_results(trades_df, initial_capital=1000.0):
     gross_loss = abs(trades_df[trades_df['pnl'] <= 0]['pnl'].sum())
     profit_factor = gross_profit / gross_loss if gross_loss > 0 else np.inf
     
-    trades_df['peak'] = trades_df['account_balance'].cummax()
-    trades_df['drawdown'] = trades_df['peak'] - trades_df['account_balance']
-    max_drawdown = trades_df['drawdown'].max()
-    max_drawdown_percent = (max_drawdown / trades_df['peak'].max()) * 100 if trades_df['peak'].max() > 0 else 0
+    # Calculate drawdown without creating new columns
+    account_balance = trades_df['account_balance'].values
+    peak = np.maximum.accumulate(account_balance)
+    drawdown = peak - account_balance
+    max_drawdown = drawdown.max()
+    max_drawdown_percent = (max_drawdown / peak.max()) * 100 if peak.max() > 0 else 0
 
     print("\n--- Analýza výkonu ---")
     print(f"Počáteční kapitál: {initial_capital:.2f} USDT")
@@ -168,6 +181,7 @@ def main():
     except Exception as e:
         print(f"Chyba při načítání souboru {filename}: {e}"); return
     
+    # Calculate Ichimoku indicators once for all strategies
     original_columns = set(df.columns)
     df.ta.ichimoku(tenkan=ICHIMOKU_SETTINGS["tenkan"], kijun=ICHIMOKU_SETTINGS["kijun"], senkou=ICHIMOKU_SETTINGS["senkou"], append=True)
     new_columns = set(df.columns)
@@ -191,7 +205,8 @@ def main():
     
     for name, code in exit_strategies.items():
         print(f"\n--- Spouštím test pro výstupní strategii: {name} ---")
-        logbook = run_backtest(df.copy(), code, initial_capital=INITIAL_CAPITAL, risk_percent=RISK_PERCENT)
+        # Pass the same dataframe to all strategies (safe: run_backtest only reads, never modifies df)
+        logbook = run_backtest(df, code, initial_capital=INITIAL_CAPITAL, risk_percent=RISK_PERCENT)
         
         analyze_results(logbook, initial_capital=INITIAL_CAPITAL)
         
