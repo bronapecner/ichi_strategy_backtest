@@ -205,7 +205,7 @@ def main():
     
     for name, code in exit_strategies.items():
         print(f"\n--- Spouštím test pro výstupní strategii: {name} ---")
-        # Pass the same dataframe without copying
+        # Pass the same dataframe to all strategies (safe: run_backtest only reads, never modifies df)
         logbook = run_backtest(df, code, initial_capital=INITIAL_CAPITAL, risk_percent=RISK_PERCENT)
         
         analyze_results(logbook, initial_capital=INITIAL_CAPITAL)
